@@ -4,10 +4,16 @@ import pytest
 import yaml
 
 from main import (
-    Ticket, JiraFields, format_points, extract_sprint_name,
-    is_cache_fresh, get_cached_tickets, process_jira_issue,
-    print_sprint_stats, load_config, NO_SPRINT
+    Ticket,
+    JiraFields,
+    extract_sprint_name,
+    is_cache_fresh,
+    get_cached_tickets,
+    process_jira_issue,
+    print_sprint_stats,
+    NO_SPRINT,
 )
+from shared import load_config, validate_jira_full_config
 
 
 def test_load_config_missing_fields(tmp_path, monkeypatch):
@@ -19,17 +25,18 @@ def test_load_config_missing_fields(tmp_path, monkeypatch):
             "fields": {
                 "story_points": "customfield_123"
                 # "sprint" is missing
-            }
+            },
         },
-        "tickets": []
+        "tickets": [],
     }
     with open(config_file, "w") as f:
         yaml.dump(config_data, f)
 
-    monkeypatch.setattr("main.CONFIG_FILE", str(config_file))
+    monkeypatch.setattr("shared.CONFIG_FILE", str(config_file))
 
+    config = load_config()
     with pytest.raises(SystemExit) as excinfo:
-        load_config()
+        validate_jira_full_config(config)
     assert excinfo.value.code == 1
 
 
@@ -39,30 +46,19 @@ def test_load_config_success(tmp_path, monkeypatch):
         "jira": {
             "url": "https://jira.example.com",
             "token": "secret",
-            "fields": {
-                "story_points": "customfield_123",
-                "sprint": "customfield_456"
-            }
+            "fields": {"story_points": "customfield_123", "sprint": "customfield_456"},
         },
-        "tickets": ["T-1"]
+        "tickets": ["T-1"],
     }
     with open(config_file, "w") as f:
         yaml.dump(config_data, f)
 
-    monkeypatch.setattr("main.CONFIG_FILE", str(config_file))
+    monkeypatch.setattr("shared.CONFIG_FILE", str(config_file))
 
     config = load_config()
     assert config.jira.fields.story_points == "customfield_123"
     assert config.jira.fields.sprint == "customfield_456"
     assert config.tickets == ["T-1"]
-
-
-def test_format_points():
-    assert format_points(1.0) == 1
-    assert format_points(1.5) == 1.5
-    assert format_points(0) == 0
-    assert format_points(5.0) == 5
-    assert format_points(5.75) == 5.75
 
 
 def test_extract_sprint_name():
@@ -95,7 +91,8 @@ def test_extract_sprint_name():
     # Mock issue with string sprint representation
     issue_str_sprint = MagicMock()
     issue_str_sprint.fields.customfield_102 = [
-        "com.atlassian.greenhopper.service.sprint.Sprint@...[name=Sprint 3,goal=...]"]
+        "com.atlassian.greenhopper.service.sprint.Sprint@...[name=Sprint 3,goal=...]"
+    ]
     assert extract_sprint_name(issue_str_sprint, fields) == "Sprint 3"
 
 
@@ -106,13 +103,24 @@ def test_is_cache_fresh():
     assert not is_cache_fresh(None, closed_statuses)
 
     # Open status should be stale
-    assert not is_cache_fresh(Ticket(key="A", summary="S", status="Open", story_points=1, sprint="S1"), closed_statuses)
-    assert not is_cache_fresh(Ticket(key="B", summary="S", status="In Progress", story_points=1, sprint="S1"),
-                              closed_statuses)
+    assert not is_cache_fresh(
+        Ticket(key="A", summary="S", status="Open", story_points=1, sprint="S1"),
+        closed_statuses,
+    )
+    assert not is_cache_fresh(
+        Ticket(key="B", summary="S", status="In Progress", story_points=1, sprint="S1"),
+        closed_statuses,
+    )
 
     # Closed status should be fresh
-    assert is_cache_fresh(Ticket(key="C", summary="S", status="Done", story_points=1, sprint="S1"), closed_statuses)
-    assert is_cache_fresh(Ticket(key="D", summary="S", status="Closed", story_points=1, sprint="S1"), closed_statuses)
+    assert is_cache_fresh(
+        Ticket(key="C", summary="S", status="Done", story_points=1, sprint="S1"),
+        closed_statuses,
+    )
+    assert is_cache_fresh(
+        Ticket(key="D", summary="S", status="Closed", story_points=1, sprint="S1"),
+        closed_statuses,
+    )
 
 
 @patch("main.load_ticket_from_cache")
@@ -127,8 +135,10 @@ def test_get_cached_tickets(mock_load):
     ticket_b = Ticket("B", "S", "Open", 1, "S1")
 
     def side_effect(key):
-        if key == "A": return ticket_a
-        if key == "B": return ticket_b
+        if key == "A":
+            return ticket_a
+        if key == "B":
+            return ticket_b
         return None
 
     mock_load.side_effect = side_effect

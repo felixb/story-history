@@ -1,35 +1,21 @@
 #! /usr/bin/env uv run python3
 
-import sys
-
-import yaml
 from jira import JIRA
 
-from main import CONFIG_FILE
+from shared import load_config, validate_jira_base_config
 
 
 def main() -> None:
-    try:
-        with open(CONFIG_FILE, "r") as f:
-            config = yaml.safe_load(f)
-    except FileNotFoundError:
-        print(f"{CONFIG_FILE} not found")
-        sys.exit(1)
+    config = load_config()
+    validate_jira_base_config(config)
 
-    url = config.get("jira", {}).get("url")
-    token = config.get("jira", {}).get("token")
-
-    if not url or not token:
-        print(f"Jira url or token missing in {CONFIG_FILE}")
-        sys.exit(1)
-
-    jira = JIRA(server=url, token_auth=token)
+    jira = JIRA(server=config.jira.url, token_auth=config.jira.token)
 
     print("Fetching Jira fields...")
     fields = jira.fields()
 
-    sp_fields = [f for f in fields if 'Story Point' in f['name']]
-    sprint_fields = [f for f in fields if 'Sprint' in f['name']]
+    sp_fields = [f for f in fields if "Story Point" in f["name"]]
+    sprint_fields = [f for f in fields if "Sprint" in f["name"]]
 
     print("\n--- Potential Story Points Fields ---")
     for f in sp_fields:

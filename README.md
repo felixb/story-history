@@ -12,7 +12,29 @@ velocity without the heavy Jira UI.
     - **Open Tickets**: Lists your tracked tickets with direct browser links.
     - **Authored by Me**: Automatically finds and lists open tickets you've reported.
 - 📊 **Sprint Analytics**: Sums up story points (SP) per sprint, distinguishing between closed and total capacity.
+- ⏱️ **Time Tracking**: Log and report spent hours on tickets or common tasks.
 - 🔍 **Field Discovery**: Includes a utility to help find your Jira instance's specific custom field IDs.
+
+## 🚀 Quick Start
+
+### 1. Jira Ticket Tracking
+Run the main script to see your current ticket status and sprint progress:
+```bash
+./main.py
+```
+
+### 2. Time Tracking
+Log hours for the current day:
+```bash
+# Add 1.5h to the default account (common)
+./track.py -add 1.5
+
+# Add 2h to a specific ticket and show the log
+./track.py -add 2.0 PROJECT-123 -log
+
+# Show weekly summary in short format
+./track.py -log -short
+```
 
 ## 🛠 Configuration
 
@@ -31,6 +53,7 @@ jira:
 tickets: # List of Jira ticket keys to track explicitly
   - PROJECT-123
   - PROJECT-456
+common_label: common # The default label for hours not assigned to a specific ticket
 ```
 
 > [!TIP]
