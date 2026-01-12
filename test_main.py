@@ -190,6 +190,8 @@ def test_print_sprint_stats(capsys):
         Ticket("A", "S1", "Done", 3.0, "Sprint 1"),
         Ticket("B", "S2", "Open", 5.0, "Sprint 1"),
         Ticket("C", "S3", "Done", 2.0, "Sprint 2"),
+        Ticket("E", "S5", "Done", 4.0, "Sprint 3"),
+        Ticket("D", "S4", "Done", 1.0, NO_SPRINT),
     ]
 
     print_sprint_stats(issues, closed_statuses)
@@ -200,3 +202,26 @@ def test_print_sprint_stats(capsys):
     assert "--- Story Points by Sprint ---" in output
     assert "Sprint 1: 3 / 8 SP" in output
     assert "Sprint 2: 2 SP" in output
+    assert "Sprint 3: 4 SP" in output
+    assert f"{NO_SPRINT}: 1 SP" in output
+    # Total real sprints: 3. Total SP: 8+2+4=14. Closed: 3+2+4=9.
+    # Avg: 9/3 = 3. 14/3 = 4.666...
+    assert "Average sprint: 3 / 4.66667 SP" in output
+    # Excl last (Sprint 3): Sprints 1 & 2. Total SP: 8+2=10. Closed: 3+2=5.
+    # Avg: 5/2 = 2.5. 10/2 = 5.
+    assert "Average sprint (excl. last): 2.5 / 5 SP" in output
+
+
+def test_print_sprint_stats_no_real_sprints(capsys):
+    closed_statuses = ["Done"]
+    issues = [
+        Ticket("D", "S4", "Done", 1.0, NO_SPRINT),
+    ]
+
+    print_sprint_stats(issues, closed_statuses)
+
+    captured = capsys.readouterr()
+    output = captured.out
+
+    assert "Average" not in output
+    assert f"{NO_SPRINT}: 1 SP" in output

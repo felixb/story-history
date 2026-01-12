@@ -35,7 +35,7 @@ def print_tickets(title: str, tickets: list[Ticket], url: str) -> None:
 
 def extract_sprint_name(issue: Any, fields: JiraFields) -> str:
     sprint_field = fields.sprint
-    if not hasattr(issue.fields, sprint_field):
+    if not sprint_field or not hasattr(issue.fields, sprint_field):
         return NO_SPRINT
 
     sprints = getattr(issue.fields, sprint_field)
@@ -139,6 +139,17 @@ def fetch_authored_tickets(
     return authored_tickets
 
 
+def format_story_pints(closed: float, total: float) -> str:
+    if total == closed:
+        return f"{total:g} SP"
+    else:
+        return f"{closed:g} / {total:g} SP"
+
+
+def print_sprint_story_points(sprint_name: str, closed: float, total: float) -> None:
+    print(f"{sprint_name}: {format_story_pints(closed, total)}")
+
+
 def print_sprint_stats(issues_data: list[Ticket], closed_statuses: list[str]) -> None:
     print("\n--- Story Points by Sprint ---")
     sprint_stats = {}  # sprint_name -> {"total": points, "closed": points}
@@ -157,10 +168,24 @@ def print_sprint_stats(issues_data: list[Ticket], closed_statuses: list[str]) ->
     for sprint, stats in sorted(sprint_stats.items()):
         total = stats["total"]
         closed = stats["closed"]
-        if total == closed:
-            print(f"{sprint}: {total:g} SP")
-        else:
-            print(f"{sprint}: {closed:g} / {total:g} SP")
+        print_sprint_story_points(sprint, closed, total)
+
+    # 1. Average excluding last sprint
+    real_sprints = {k: v for k, v in sprint_stats.items() if k != NO_SPRINT}
+    if len(real_sprints) > 1:
+        sorted_keys = sorted(real_sprints.keys())
+        all_but_last = [real_sprints[s] for s in sorted_keys[:-1]]
+        avg_total_excl = sum(s["total"] for s in all_but_last) / len(all_but_last)
+        avg_closed_excl = sum(s["closed"] for s in all_but_last) / len(all_but_last)
+        print_sprint_story_points(
+            "Average sprint (excl. last)", avg_closed_excl, avg_total_excl
+        )
+
+    # 2. Overall Average
+    if real_sprints:
+        avg_total = sum(s["total"] for s in real_sprints.values()) / len(real_sprints)
+        avg_closed = sum(s["closed"] for s in real_sprints.values()) / len(real_sprints)
+        print_sprint_story_points("Average sprint", avg_closed, avg_total)
 
 
 def main() -> None:
