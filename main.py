@@ -2,23 +2,27 @@
 
 import os
 import re
+import argparse
 from dataclasses import asdict
 from typing import Optional, Any
 
 import yaml
 from jira import JIRA
-
-CACHE_DIR = ".cache"
-CONFIG_FILE = "config.yaml"
-NO_SPRINT = "No Sprint"
-
+import hours_command as hours
+from track_command import track_tickets
 
 from shared import (
     Ticket,
     JiraFields,
     load_config,
+    save_config,
     validate_jira_full_config,
     CONFIG_FILE,
+    CACHE_DIR,
+    NO_SPRINT,
+    get_cached_tickets,
+    fetch_and_cache_tickets,
+    load_ticket_from_cache,
 )
 
 
@@ -33,93 +37,6 @@ def print_tickets(title: str, tickets: list[Ticket], url: str) -> None:
         print(f"{issue.key}: {issue.summary} [{issue.status}]{points_str} - {link}")
 
 
-def extract_sprint_name(issue: Any, fields: JiraFields) -> str:
-    sprint_field = fields.sprint
-    if not sprint_field or not hasattr(issue.fields, sprint_field):
-        return NO_SPRINT
-
-    sprints = getattr(issue.fields, sprint_field)
-    if not sprints or not isinstance(sprints, list) or len(sprints) == 0:
-        return NO_SPRINT
-
-    sprint = sprints[-1]
-    if hasattr(sprint, "name"):
-        return sprint.name
-    elif isinstance(sprint, str) and "name=" in sprint:
-        match = re.search(r"name=([^,]+)", sprint)
-        if match:
-            return match.group(1)
-    return str(sprint)
-
-
-def save_ticket_to_cache(ticket: Ticket) -> None:
-    cache_path = os.path.join(CACHE_DIR, f"{ticket.key}.yaml")
-    with open(cache_path, "w") as f:
-        yaml.dump(asdict(ticket), f)
-
-
-def process_jira_issue(issue: Any, fields: JiraFields) -> Ticket:
-    status = issue.fields.status.name
-    points = getattr(issue.fields, fields.story_points, 0)
-    if points is None:
-        points = 0
-
-    return Ticket(
-        key=issue.key,
-        summary=issue.fields.summary,
-        status=status,
-        story_points=float(points),
-        sprint=extract_sprint_name(issue, fields),
-    )
-
-
-def fetch_and_cache_tickets(
-    jira: JIRA, jql: str, fields: JiraFields, limit: int = 50
-) -> list[Ticket]:
-    fetched_issues = jira.search_issues(jql, maxResults=limit)
-    processed_tickets = []
-
-    for issue in fetched_issues:
-        issue_info = process_jira_issue(issue, fields)
-        processed_tickets.append(issue_info)
-        save_ticket_to_cache(issue_info)
-
-    return processed_tickets
-
-
-def load_ticket_from_cache(key: str) -> Optional[Ticket]:
-    cache_path = os.path.join(CACHE_DIR, f"{key}.yaml")
-    if not os.path.exists(cache_path):
-        return None
-    with open(cache_path, "r") as f:
-        data = yaml.safe_load(f)
-        if data:
-            return Ticket(**data)
-        return None
-
-
-def is_cache_fresh(ticket: Optional[Ticket], closed_statuses: list[str]) -> bool:
-    if ticket is None:
-        return False
-    return ticket.status in closed_statuses
-
-
-def get_cached_tickets(
-    ticket_keys: list[str], closed_statuses: list[str]
-) -> tuple[list[Ticket], list[str]]:
-    cached_issues = []
-    keys_to_fetch = []
-
-    for key in ticket_keys:
-        ticket = load_ticket_from_cache(key)
-        if is_cache_fresh(ticket, closed_statuses):
-            cached_issues.append(ticket)
-        else:
-            keys_to_fetch.append(key)
-
-    return cached_issues, keys_to_fetch
-
-
 def fetch_authored_tickets(
     jira: JIRA, issues_data: list[Ticket], fields: JiraFields
 ) -> list[Ticket]:
@@ -130,9 +47,7 @@ def fetch_authored_tickets(
         for ticket in my_issues_data:
             # Check if we already have it in issues_data (refreshed or cached)
             existing = next((i for i in issues_data if i.key == ticket.key), None)
-            if existing:
-                authored_tickets.append(existing)
-            else:
+            if not existing:
                 authored_tickets.append(ticket)
     except Exception as e:
         print(f"Could not fetch authored tickets: {e}")
@@ -189,11 +104,51 @@ def print_sprint_stats(issues_data: list[Ticket], closed_statuses: list[str]) ->
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Jira Story History Tracker")
+    subparsers = parser.add_subparsers(dest="command", help="Commands")
+
+    # track command
+    subparsers.add_parser("track", help="Start tracking new tickets assigned to me")
+
+    # hours command
+    hours_parser = subparsers.add_parser("hours", help="Track spent hours on tickets")
+    hours_parser.add_argument("-a", "-add", dest="add", type=float, help="Hours to add")
+    hours_parser.add_argument(
+        "ticket",
+        nargs="?",
+        help="Ticket ID or account",
+    )
+    hours_parser.add_argument(
+        "-l", "-log", dest="log", action="store_true", help="Print weekly log"
+    )
+    hours_parser.add_argument(
+        "-s",
+        "-short",
+        dest="short",
+        action="store_true",
+        help="Print log in short format",
+    )
+
+    args = parser.parse_args()
+
     if not os.path.exists(CACHE_DIR):
         os.makedirs(CACHE_DIR)
 
     config = load_config()
+
+    if args.command == "hours":
+        # Pass relevant args to hours.py main logic
+        # We need to adapt hours.py slightly to be callable with args
+        hours.run_with_args(args, config)
+        return
+
     validate_jira_full_config(config)
+
+    jira = JIRA(server=config.jira.url, token_auth=config.jira.token)
+
+    if args.command == "track":
+        track_tickets(jira, config)
+        return
 
     if not config.tickets:
         print(f"No tickets found in {CONFIG_FILE}")

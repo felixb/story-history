@@ -4,7 +4,7 @@ import yaml
 from datetime import date
 from unittest.mock import patch
 import sys
-from track import add_hours, load_hours, save_hours, print_log, main
+from hours_command import add_hours, load_hours, save_hours, print_log
 
 
 def test_print_log_empty(capsys):
@@ -112,7 +112,7 @@ def test_add_hours_different_ticket_same_day():
 def test_save_and_load_hours(tmp_path, monkeypatch):
     # Use a temporary file for testing
     hours_file = tmp_path / "test_hours.yaml"
-    monkeypatch.setattr("track.HOURS_FILE", str(hours_file))
+    monkeypatch.setattr("hours_command.HOURS_FILE", str(hours_file))
 
     data = {"2026-01-09": {"common": 5.0}}
     save_hours(data)
@@ -125,7 +125,7 @@ def test_save_and_load_hours(tmp_path, monkeypatch):
 
 def test_load_hours_non_existent(tmp_path, monkeypatch):
     hours_file = tmp_path / "non_existent.yaml"
-    monkeypatch.setattr("track.HOURS_FILE", str(hours_file))
+    monkeypatch.setattr("hours_command.HOURS_FILE", str(hours_file))
 
     loaded_data = load_hours()
     assert loaded_data == {}

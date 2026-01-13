@@ -4,16 +4,97 @@ import pytest
 import yaml
 
 from main import (
+    print_sprint_stats,
+)
+
+from track_command import track_tickets
+
+from shared import (
     Ticket,
     JiraFields,
     extract_sprint_name,
     is_cache_fresh,
     get_cached_tickets,
     process_jira_issue,
-    print_sprint_stats,
     NO_SPRINT,
+    load_config,
+    save_config,
+    validate_jira_full_config,
+    Config,
+    JiraConfig,
 )
-from shared import load_config, validate_jira_full_config
+
+
+def test_track_tickets_no_new(capsys):
+    jira_mock = MagicMock()
+    config = Config(
+        jira=JiraConfig(fields=JiraFields()),
+        tickets=["T-1"],
+        common_label="BMW",
+    )
+
+    # Mock fetch_and_cache_tickets to return T-1 which is already tracked
+    with patch("track_command.fetch_and_cache_tickets") as mock_fetch:
+        mock_fetch.return_value = [Ticket("T-1", "Summary", "Open", 1.0, "S1")]
+        track_tickets(jira_mock, config)
+
+    captured = capsys.readouterr()
+    assert "No new untracked tickets found assigned to you." in captured.out
+
+
+def test_track_tickets_add_all(monkeypatch, capsys):
+    jira_mock = MagicMock()
+    config = Config(
+        jira=JiraConfig(
+            url="https://test.jira.com",
+            token="token",
+            fields=JiraFields(story_points="sp", sprint="sprint"),
+        ),
+        tickets=["T-1"],
+        common_label="BMW",
+    )
+
+    untracked_ticket = Ticket("T-2", "New Issue", "Open", 2.0, "S1")
+
+    with (
+        patch("track_command.fetch_and_cache_tickets") as mock_fetch,
+        patch("builtins.input", return_value="0"),
+        patch("track_command.save_config") as mock_save,
+    ):
+        mock_fetch.return_value = [untracked_ticket]
+        track_tickets(jira_mock, config)
+
+    assert "T-2" in config.tickets
+    captured = capsys.readouterr()
+    assert "Added T-2 to tracking." in captured.out
+    mock_save.assert_called_once()
+
+
+def test_save_config(tmp_path, monkeypatch):
+    config_file = tmp_path / "config_save.yaml"
+    monkeypatch.setattr("shared.CONFIG_FILE", str(config_file))
+
+    config = Config(
+        jira=JiraConfig(
+            url="https://test.jira.com",
+            token="test-token",
+            fields=JiraFields(story_points="sp_field", sprint="sprint_field"),
+        ),
+        tickets=["T-1", "T-2"],
+        common_label="BMW",
+    )
+
+    save_config(config)
+
+    assert config_file.exists()
+    with open(config_file, "r") as f:
+        data = yaml.safe_load(f)
+
+    assert data["jira"]["url"] == "https://test.jira.com"
+    assert data["jira"]["token"] == "test-token"
+    assert data["jira"]["fields"]["story_points"] == "sp_field"
+    assert data["tickets"] == ["T-1", "T-2"]
+    assert data["common_label"] == "BMW"
 
 
 def test_load_config_missing_fields(tmp_path, monkeypatch):
@@ -98,35 +179,56 @@ def test_extract_sprint_name():
 
 def test_is_cache_fresh():
     closed_statuses = ["Done", "Closed"]
-
     # None should be stale
     assert not is_cache_fresh(None, closed_statuses)
 
     # Open status should be stale
     assert not is_cache_fresh(
-        Ticket(key="A", summary="S", status="Open", story_points=1, sprint="S1"),
+        Ticket(
+            key="A",
+            summary="S",
+            status="Open",
+            story_points=1,
+            sprint="S1",
+        ),
         closed_statuses,
     )
     assert not is_cache_fresh(
-        Ticket(key="B", summary="S", status="In Progress", story_points=1, sprint="S1"),
+        Ticket(
+            key="B",
+            summary="S",
+            status="In Progress",
+            story_points=1,
+            sprint="S1",
+        ),
         closed_statuses,
     )
 
-    # Closed status should be fresh
+    # Done status category should be fresh
     assert is_cache_fresh(
-        Ticket(key="C", summary="S", status="Done", story_points=1, sprint="S1"),
+        Ticket(
+            key="C",
+            summary="S",
+            status="Done",
+            story_points=1,
+            sprint="S1",
+        ),
         closed_statuses,
     )
     assert is_cache_fresh(
-        Ticket(key="D", summary="S", status="Closed", story_points=1, sprint="S1"),
+        Ticket(
+            key="D",
+            summary="S",
+            status="Closed",
+            story_points=1,
+            sprint="S1",
+        ),
         closed_statuses,
     )
 
 
-@patch("main.load_ticket_from_cache")
+@patch("shared.load_ticket_from_cache")
 def test_get_cached_tickets(mock_load):
-    closed_statuses = ["Done", "Closed"]
-
     # Ticket A is in cache and fresh
     # Ticket B is in cache but stale
     # Ticket C is not in cache
@@ -143,7 +245,7 @@ def test_get_cached_tickets(mock_load):
 
     mock_load.side_effect = side_effect
 
-    cached, to_fetch = get_cached_tickets(["A", "B", "C"], closed_statuses)
+    cached, to_fetch = get_cached_tickets(["A", "B", "C"], ["Done", "Closed"])
 
     assert cached == [ticket_a]
     assert to_fetch == ["B", "C"]
@@ -156,10 +258,11 @@ def test_process_jira_issue():
     issue.key = "PROJ-1"
     issue.fields.summary = "Test Summary"
     issue.fields.status.name = "In Progress"
+    issue.fields.status.statusCategory.name = "In Progress"
     setattr(issue.fields, "customfield_101", 5.0)
 
     # Mock extract_sprint_name to avoid nested mocking complexity
-    with patch("main.extract_sprint_name", return_value="Sprint 1"):
+    with patch("shared.extract_sprint_name", return_value="Sprint 1"):
         ticket = process_jira_issue(issue, fields)
 
     assert ticket.key == "PROJ-1"
@@ -176,16 +279,16 @@ def test_process_jira_issue_null_points():
     issue.key = "PROJ-2"
     issue.fields.summary = "Null Points"
     issue.fields.status.name = "Open"
+    issue.fields.status.statusCategory.name = "To Do"
     setattr(issue.fields, "customfield_101", None)
 
-    with patch("main.extract_sprint_name", return_value=NO_SPRINT):
+    with patch("shared.extract_sprint_name", return_value=NO_SPRINT):
         ticket = process_jira_issue(issue, fields)
 
     assert ticket.story_points == 0.0
 
 
 def test_print_sprint_stats(capsys):
-    closed_statuses = ["Done"]
     issues = [
         Ticket("A", "S1", "Done", 3.0, "Sprint 1"),
         Ticket("B", "S2", "Open", 5.0, "Sprint 1"),
@@ -194,7 +297,7 @@ def test_print_sprint_stats(capsys):
         Ticket("D", "S4", "Done", 1.0, NO_SPRINT),
     ]
 
-    print_sprint_stats(issues, closed_statuses)
+    print_sprint_stats(issues, ["Done"])
 
     captured = capsys.readouterr()
     output = captured.out
@@ -213,12 +316,11 @@ def test_print_sprint_stats(capsys):
 
 
 def test_print_sprint_stats_no_real_sprints(capsys):
-    closed_statuses = ["Done"]
     issues = [
         Ticket("D", "S4", "Done", 1.0, NO_SPRINT),
     ]
 
-    print_sprint_stats(issues, closed_statuses)
+    print_sprint_stats(issues, ["Done"])
 
     captured = capsys.readouterr()
     output = captured.out
