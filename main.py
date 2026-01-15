@@ -1,29 +1,23 @@
 #! /usr/bin/env uv run python3
 
-import os
-import re
 import argparse
-from dataclasses import asdict
-from typing import Optional, Any
+import os
 
-import yaml
 from jira import JIRA
-import hours_command as hours
-from track_command import track_tickets
 
+import hours_command as hours
 from shared import (
     Ticket,
     JiraFields,
     load_config,
-    save_config,
     validate_jira_full_config,
     CONFIG_FILE,
     CACHE_DIR,
     NO_SPRINT,
     get_cached_tickets,
     fetch_and_cache_tickets,
-    load_ticket_from_cache,
 )
+from track_command import track_tickets
 
 
 def print_tickets(title: str, tickets: list[Ticket], url: str) -> None:
@@ -127,6 +121,13 @@ def main() -> None:
         dest="short",
         action="store_true",
         help="Print log in short format",
+    )
+    hours_parser.add_argument(
+        "-t",
+        "-total",
+        dest="total",
+        action="store_true",
+        help="Print total hours spent on a ticket",
     )
 
     args = parser.parse_args()

@@ -1,5 +1,7 @@
 from typing import Any
+
 from jira import JIRA
+
 from shared import fetch_and_cache_tickets, save_config, CONFIG_FILE
 
 

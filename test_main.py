@@ -6,9 +6,6 @@ import yaml
 from main import (
     print_sprint_stats,
 )
-
-from track_command import track_tickets
-
 from shared import (
     Ticket,
     JiraFields,
@@ -23,6 +20,7 @@ from shared import (
     Config,
     JiraConfig,
 )
+from track_command import track_tickets
 
 
 def test_track_tickets_no_new(capsys):

@@ -1,9 +1,10 @@
 #! /usr/bin/env uv run python3
-import argparse
-import yaml
 import os
 from datetime import date, timedelta
-from shared import load_config, load_ticket_from_cache
+
+import yaml
+
+from shared import load_ticket_from_cache
 
 HOURS_FILE = "hours.yaml"
 
@@ -74,11 +75,22 @@ def print_log(data, days, common_label, short=False):
         print("No hours tracked this week.")
 
 
-def run_with_args(args, config):
-    if not args.add and not args.log and not args.short:
-        print("No action specified for hours command.")
-        return
+def print_ticket_total(data, ticket_key):
+    total = 0
+    for day_iso in data:
+        day_entries = data[day_iso]
+        total += day_entries.get(ticket_key, 0)
 
+    ticket_info = load_ticket_from_cache(ticket_key)
+    if ticket_info:
+        print(
+            f"{ticket_key}: {total:g}h - {ticket_info.summary} [{ticket_info.status}]"
+        )
+    else:
+        print(f"{ticket_key}: {total:g}h")
+
+
+def run_with_args(args, config):
     today = date.today()
     today_iso = today.isoformat()
     data = load_hours()
@@ -90,7 +102,11 @@ def run_with_args(args, config):
         save_hours(data)
         print(f"Added {args.add:g}h to {ticket_key} for {today_iso}.")
 
-    if args.log or args.short:
+    if args.total:
+        print_ticket_total(data, ticket_key)
+        return
+
+    if args.log or args.short or not (args.add or args.total):
         start_of_week = today - timedelta(days=today.weekday())
         week_days = [(start_of_week + timedelta(days=i)).isoformat() for i in range(7)]
         print_log(data, week_days, config.common_label, short=args.short)

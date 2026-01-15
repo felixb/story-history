@@ -1,10 +1,54 @@
-import pytest
-import os
 import yaml
-from datetime import date
-from unittest.mock import patch
-import sys
-from hours_command import add_hours, load_hours, save_hours, print_log
+
+from hours_command import (
+    add_hours,
+    load_hours,
+    save_hours,
+    print_log,
+    print_ticket_total,
+)
+
+
+def test_print_ticket_total_no_cache(capsys, monkeypatch):
+    data = {
+        "2026-01-08": {"PROJ-123": 2.0, "common": 3.0},
+        "2026-01-09": {"PROJ-123": 1.5, "common": 1.5},
+    }
+    # Mock load_ticket_from_cache to return None
+    monkeypatch.setattr("hours_command.load_ticket_from_cache", lambda x: None)
+
+    print_ticket_total(data, "PROJ-123")
+    captured = capsys.readouterr()
+    assert "PROJ-123: 3.5h" in captured.out
+
+
+def test_print_ticket_total_with_cache(capsys, monkeypatch):
+    data = {
+        "2026-01-08": {"PROJ-123": 2.0, "common": 3.0},
+        "2026-01-09": {"PROJ-123": 1.5, "common": 1.5},
+    }
+
+    class MockTicket:
+        summary = "Test Summary"
+        status = "In Progress"
+
+    # Mock load_ticket_from_cache to return a mock ticket
+    monkeypatch.setattr("hours_command.load_ticket_from_cache", lambda x: MockTicket())
+
+    print_ticket_total(data, "PROJ-123")
+    captured = capsys.readouterr()
+    assert "PROJ-123: 3.5h - Test Summary [In Progress]" in captured.out
+
+
+def test_print_ticket_total_empty(capsys, monkeypatch):
+    data = {
+        "2026-01-08": {"common": 3.0},
+    }
+    monkeypatch.setattr("hours_command.load_ticket_from_cache", lambda x: None)
+
+    print_ticket_total(data, "PROJ-123")
+    captured = capsys.readouterr()
+    assert "PROJ-123: 0h" in captured.out
 
 
 def test_print_log_empty(capsys):
