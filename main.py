@@ -6,6 +6,7 @@ import os
 from jira import JIRA
 
 import hours_command as hours
+import show_command as show
 from shared import (
     Ticket,
     JiraFields,
@@ -130,6 +131,10 @@ def main() -> None:
         help="Print total hours spent on a ticket",
     )
 
+    # show command
+    show_parser = subparsers.add_parser("show", help="Show story details as markdown")
+    show_parser.add_argument("ticket", help="Ticket ID to show")
+
     args = parser.parse_args()
 
     if not os.path.exists(CACHE_DIR):
@@ -141,6 +146,10 @@ def main() -> None:
         # Pass relevant args to hours.py main logic
         # We need to adapt hours.py slightly to be callable with args
         hours.run_with_args(args, config)
+        return
+
+    if args.command == "show":
+        show.run_with_args(args, config)
         return
 
     validate_jira_full_config(config)

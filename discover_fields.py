@@ -16,6 +16,7 @@ def main() -> None:
 
     sp_fields = [f for f in fields if "Story Point" in f["name"]]
     sprint_fields = [f for f in fields if "Sprint" in f["name"]]
+    ac_fields = [f for f in fields if "Acceptance" in f["name"]]
 
     print("\n--- Potential Story Points Fields ---")
     for f in sp_fields:
@@ -23,6 +24,10 @@ def main() -> None:
 
     print("\n--- Potential Sprint Fields ---")
     for f in sprint_fields:
+        print(f"Name: {f['name']}, ID: {f['id']}")
+
+    print("\n--- Potential Acceptance Criteria Fields ---")
+    for f in ac_fields:
         print(f"Name: {f['name']}, ID: {f['id']}")
 
 

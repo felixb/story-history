@@ -19,12 +19,15 @@ class Ticket:
     status: str
     story_points: float
     sprint: str
+    description: Optional[str] = None
+    acceptance_criteria: Optional[list] = None
 
 
 @dataclass
 class JiraFields:
     story_points: Optional[str] = None
     sprint: Optional[str] = None
+    acceptance_criteria: Optional[str] = None
 
 
 @dataclass
@@ -56,6 +59,7 @@ def load_config() -> Config:
     fields = JiraFields(
         story_points=fields_data.get("story_points"),
         sprint=fields_data.get("sprint"),
+        acceptance_criteria=fields_data.get("acceptance_criteria"),
     )
 
     jira_config = JiraConfig(
@@ -83,6 +87,7 @@ def save_config(config: Config) -> None:
             "fields": {
                 "story_points": config.jira.fields.story_points,
                 "sprint": config.jira.fields.sprint,
+                "acceptance_criteria": config.jira.fields.acceptance_criteria,
             },
         },
         "tickets": config.tickets,
@@ -125,12 +130,47 @@ def process_jira_issue(issue: Any, fields: JiraFields) -> Ticket:
     if points is None:
         points = 0
 
+    description = (
+        issue.fields.description if hasattr(issue.fields, "description") else None
+    )
+    ac_raw = (
+        getattr(issue.fields, fields.acceptance_criteria, None)
+        if fields.acceptance_criteria
+        else None
+    )
+
+    ac_processed = None
+    if ac_raw:
+        if isinstance(ac_raw, list):
+            ac_processed = []
+            for item in ac_raw:
+                if hasattr(item, "name"):
+                    text = item.name
+                    is_header = getattr(item, "isHeader", False)
+                elif isinstance(item, dict) and "name" in item:
+                    text = item["name"]
+                    is_header = item.get("isHeader", False)
+                else:
+                    text = str(item)
+                    is_header = False
+
+                ac_processed.append(
+                    {
+                        "text": text,
+                        "isHeader": is_header,
+                    }
+                )
+        else:
+            ac_processed = str(ac_raw)
+
     return Ticket(
         key=issue.key,
         summary=issue.fields.summary,
         status=status,
         story_points=float(points),
         sprint=extract_sprint_name(issue, fields),
+        description=description,
+        acceptance_criteria=ac_processed,
     )
 
 
@@ -152,11 +192,19 @@ def load_ticket_from_cache(key: str) -> Optional[Ticket]:
     cache_path = os.path.join(CACHE_DIR, f"{key}.yaml")
     if not os.path.exists(cache_path):
         return None
-    with open(cache_path, "r") as f:
-        data = yaml.safe_load(f)
-        if data:
-            return Ticket(**data)
-        return None
+    try:
+        with open(cache_path, "r") as f:
+            data = yaml.safe_load(f)
+            if data:
+                return Ticket(**data)
+    except Exception as e:
+        print(f"Error loading cache for {key}: {e}")
+        # Optionally delete the corrupted cache file
+        try:
+            os.remove(cache_path)
+        except:
+            pass
+    return None
 
 
 def is_cache_fresh(ticket: Optional[Ticket], closed_statuses: list[str]) -> bool:
