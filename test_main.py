@@ -23,6 +23,49 @@ from shared import (
 from track_command import track_tickets
 
 
+def test_track_tickets_by_key(capsys):
+    jira_mock = MagicMock()
+    config = Config(
+        jira=JiraConfig(
+            url="https://test.jira.com",
+            token="token",
+            fields=JiraFields(story_points="sp", sprint="sprint"),
+        ),
+        tickets=["T-1"],
+        common_label="BMW",
+    )
+
+    ticket_to_add = Ticket("T-2", "New Issue", "Open", 2.0, "S1")
+
+    with (
+        patch("track_command.fetch_and_cache_tickets") as mock_fetch,
+        patch("track_command.save_config") as mock_save,
+    ):
+        mock_fetch.return_value = [ticket_to_add]
+        track_tickets(jira_mock, config, "T-2")
+
+    assert "T-2" in config.tickets
+    captured = capsys.readouterr()
+    assert "Added T-2 to config.yaml" in captured.out
+    mock_save.assert_called_once()
+
+
+def test_track_tickets_by_key_already_tracked(capsys):
+    jira_mock = MagicMock()
+    config = Config(
+        jira=JiraConfig(fields=JiraFields()),
+        tickets=["T-1"],
+        common_label="BMW",
+    )
+
+    track_tickets(jira_mock, config, "T-1")
+
+    captured = capsys.readouterr()
+    assert "T-1 is already being tracked." in captured.out
+    assert "T-1" in config.tickets
+    assert len(config.tickets) == 1
+
+
 def test_track_tickets_no_new(capsys):
     jira_mock = MagicMock()
     config = Config(

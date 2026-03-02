@@ -1,11 +1,15 @@
-from typing import Any
+from typing import Any, Optional
 
 from jira import JIRA
 
-from shared import fetch_and_cache_tickets, save_config, CONFIG_FILE
+from shared import fetch_and_cache_tickets, save_config, CONFIG_FILE, Ticket
 
 
-def track_tickets(jira: JIRA, config: Any) -> None:
+def track_tickets(jira: JIRA, config: Any, ticket_key: Optional[str] = None) -> None:
+    if ticket_key:
+        __track_single_ticket(jira, config, ticket_key)
+        return
+
     print("Fetching open tickets assigned to you...")
     jql = "assignee = currentUser() AND statusCategory != Done"
     my_open_tickets = fetch_and_cache_tickets(jira, jql, config.jira.fields)
@@ -50,10 +54,36 @@ def track_tickets(jira: JIRA, config: Any) -> None:
         print("No valid tickets selected.")
         return
 
-    for ticket in selected_tickets:
-        if ticket.key not in config.tickets:
-            config.tickets.append(ticket.key)
-            print(f"Added {ticket.key} to tracking.")
-
+    __add_tickets(config, selected_tickets)
     save_config(config)
     print(f"Updated {CONFIG_FILE}")
+
+
+def __track_single_ticket(jira: JIRA, config: Any, ticket_key: str):
+    if ticket_key in config.tickets:
+        print(f"{ticket_key} is already being tracked.")
+        return
+
+    try:
+        jql = f"key = {ticket_key}"
+        tickets = fetch_and_cache_tickets(jira, jql, config.jira.fields)
+        if not tickets:
+            print(f"Ticket {ticket_key} not found in Jira.")
+            return
+        __add_tickets(config, [ticket_key])
+        save_config(config)
+    except Exception as e:
+        print(f"Error fetching ticket {ticket_key}: {e}")
+
+
+def __add_tickets(config, selected_tickets: list[Ticket] | list[str]):
+    if not selected_tickets:
+        return
+    if isinstance(selected_tickets[0], Ticket):
+        selected_ticket_keys = [ticket.key for ticket in selected_tickets]
+    else:
+        selected_ticket_keys = selected_tickets
+    for ticket in selected_ticket_keys:
+        if ticket not in config.tickets:
+            config.tickets.append(ticket)
+            print(f"Added {ticket} to tracking.")

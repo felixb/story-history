@@ -103,7 +103,14 @@ def main() -> None:
     subparsers = parser.add_subparsers(dest="command", help="Commands")
 
     # track command
-    subparsers.add_parser("track", help="Start tracking new tickets assigned to me")
+    track_parser = subparsers.add_parser(
+        "track", help="Start tracking new tickets assigned to me"
+    )
+    track_parser.add_argument(
+        "ticket",
+        nargs="?",
+        help="Ticket ID to track",
+    )
 
     # hours command
     hours_parser = subparsers.add_parser("hours", help="Track spent hours on tickets")
@@ -157,7 +164,7 @@ def main() -> None:
     jira = JIRA(server=config.jira.url, token_auth=config.jira.token)
 
     if args.command == "track":
-        track_tickets(jira, config)
+        track_tickets(jira, config, args.ticket)
         return
 
     if not config.tickets:
