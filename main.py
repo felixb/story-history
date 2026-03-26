@@ -97,6 +97,20 @@ def print_sprint_stats(issues_data: list[Ticket], closed_statuses: list[str]) ->
         avg_closed = sum(s["closed"] for s in real_sprints.values()) / len(real_sprints)
         print_sprint_story_points("Average sprint", avg_closed, avg_total)
 
+    # 3. Average hours per story point
+    hours_data = hours.load_hours()
+    total_hours = 0
+    for day_entries in hours_data.values():
+        for ticket_key, ticket_hours in day_entries.items():
+            # Only count hours for tickets that have story points
+            if any(t.key == ticket_key for t in issues_data):
+                total_hours += ticket_hours
+
+    total_points = sum(t.story_points for t in issues_data)
+    if total_points > 0:
+        avg_h_per_sp = total_hours / total_points
+        print(f"\nAverage hours per story point: {avg_h_per_sp:.2f}h/SP")
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Jira Story History Tracker")

@@ -46,7 +46,7 @@ def test_track_tickets_by_key(capsys):
 
     assert "T-2" in config.tickets
     captured = capsys.readouterr()
-    assert "Added T-2 to config.yaml" in captured.out
+    assert "Added T-2 to tracking." in captured.out
     mock_save.assert_called_once()
 
 
@@ -338,7 +338,9 @@ def test_print_sprint_stats(capsys):
         Ticket("D", "S4", "Done", 1.0, NO_SPRINT),
     ]
 
-    print_sprint_stats(issues, ["Done"])
+    # Mock hours to be 0 for this test to avoid external file dependency
+    with patch("hours_command.load_hours", return_value={}):
+        print_sprint_stats(issues, ["Done"])
 
     captured = capsys.readouterr()
     output = captured.out
@@ -354,6 +356,7 @@ def test_print_sprint_stats(capsys):
     # Excl last (Sprint 3): Sprints 1 & 2. Total SP: 8+2=10. Closed: 3+2=5.
     # Avg: 5/2 = 2.5. 10/2 = 5.
     assert "Average sprint (excl. last): 2.5 / 5 SP" in output
+    assert "Average hours per story point: 0.00h/SP" in output
 
 
 def test_print_sprint_stats_no_real_sprints(capsys):
@@ -361,10 +364,13 @@ def test_print_sprint_stats_no_real_sprints(capsys):
         Ticket("D", "S4", "Done", 1.0, NO_SPRINT),
     ]
 
-    print_sprint_stats(issues, ["Done"])
+    with patch("hours_command.load_hours", return_value={}):
+        print_sprint_stats(issues, ["Done"])
 
     captured = capsys.readouterr()
     output = captured.out
 
-    assert "Average" not in output
+    # "Average sprint" should not be there, but "Average hours per story point" will be
+    assert "Average sprint:" not in output
+    assert "Average hours per story point: 0.00h/SP" in output
     assert f"{NO_SPRINT}: 1 SP" in output
