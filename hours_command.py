@@ -36,13 +36,14 @@ def print_day_log(day_iso, day_entries, common_label, short=False):
     # Sort: common_label first, then rest alphabetically
     tickets = sorted(day_entries.keys(), key=lambda x: (x != common_label, x))
 
+    day_total = sum(day_entries.values())
+
     if short:
         entries = [f"{t}: {day_entries[t]:g}h" for t in tickets]
-        print(f"{day_str}: {', '.join(entries)}")
-        return 0
+        print(f"{day_str}: {day_total:g}h - {', '.join(entries)}")
+        return day_total
 
     print(f"\n--- Hours for {day_str} ---")
-    day_total = 0
 
     for key in tickets:
         hours = day_entries[key]
@@ -51,7 +52,6 @@ def print_day_log(day_iso, day_entries, common_label, short=False):
             print(f"{key}: {hours:g}h - {ticket_info.summary} [{ticket_info.status}]")
         else:
             print(f"{key}: {hours:g}h")
-        day_total += hours
     print(f"Day Total: {day_total:g}h")
     return day_total
 

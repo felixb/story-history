@@ -109,8 +109,8 @@ def test_print_log_short(capsys):
     print_log(data, days, "common", short=True)
     captured = capsys.readouterr()
 
-    expected_08 = "Thu 2026-01-08: common: 3h, PROJ-123: 2h"
-    expected_09 = "Fri 2026-01-09: common: 1.5h, A-TICKET: 2h, Z-TICKET: 1h"
+    expected_08 = "Thu 2026-01-08: 5h - common: 3h, PROJ-123: 2h"
+    expected_09 = "Fri 2026-01-09: 4.5h - common: 1.5h, A-TICKET: 2h, Z-TICKET: 1h"
 
     assert expected_08 in captured.out
     assert expected_09 in captured.out
