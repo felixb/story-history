@@ -10,9 +10,11 @@ velocity without the heavy Jira UI.
 - 📂 **Local Caching**: Minimizes Jira API requests by storing ticket data locally.
 - 📋 **Ticket Reporting**:
     - **Open Tickets**: Lists your tracked tickets with direct browser links.
+    - **Assigned to Me**: Automatically displays open tickets assigned to you.
     - **Authored by Me**: Automatically finds and lists open tickets you've reported.
     - **Auto-tracking**: The `track` command automatically adds Jira tickets assigned to you to your tracking list.
 - 📊 **Sprint Analytics**: Sums up story points (SP) per sprint, distinguishing between closed and total capacity.
+- ⚙️ **Custom Filters**: Configure a generic JQL filter to exclude specific issue types (e.g., Cucumber tests) from automatic lists.
 - ⏱️ **Time Tracking**: Log and report spent hours on tickets or common tasks.
 - 🔍 **Field Discovery**: Includes a utility to help find your Jira instance's specific custom field IDs.
 
@@ -56,6 +58,7 @@ jira:
   closed_statuses: # Jira statuses considered "closed" for reporting
     - Done
     - Closed
+  filter: issuetype in (Story, Defect) # Generic JQL filter applied to automatic lists
 tickets: # List of Jira ticket keys to track explicitly
   - PROJECT-123
   - PROJECT-456

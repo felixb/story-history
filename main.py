@@ -32,21 +32,20 @@ def print_tickets(title: str, tickets: list[Ticket], url: str) -> None:
         print(f"{issue.key}: {issue.summary} [{issue.status}]{points_str} - {link}")
 
 
-def fetch_authored_tickets(
-    jira: JIRA, issues_data: list[Ticket], fields: JiraFields
+def fetch_additional_tickets(
+    jira: JIRA, issues_data: list[Ticket], fields: JiraFields, jql: str, error_msg: str
 ) -> list[Ticket]:
-    authored_tickets = []
+    additional_tickets = []
     try:
-        jql_authored = "reporter = currentUser() AND statusCategory != Done"
-        my_issues_data = fetch_and_cache_tickets(jira, jql_authored, fields)
+        my_issues_data = fetch_and_cache_tickets(jira, jql, fields)
         for ticket in my_issues_data:
             # Check if we already have it in issues_data (refreshed or cached)
             existing = next((i for i in issues_data if i.key == ticket.key), None)
             if not existing:
-                authored_tickets.append(ticket)
+                additional_tickets.append(ticket)
     except Exception as e:
-        print(f"Could not fetch authored tickets: {e}")
-    return authored_tickets
+        print(f"{error_msg}: {e}")
+    return additional_tickets
 
 
 def format_story_pints(closed: float, total: float) -> str:
@@ -202,8 +201,21 @@ def main() -> None:
         )
         issues_data.extend(fetched_data)
 
-    # 2. Fetch tickets authored by me
-    authored_tickets = fetch_authored_tickets(jira, issues_data, config.jira.fields)
+    # 2. Fetch tickets assigned to me or authored by me
+    assigned_tickets = fetch_additional_tickets(
+        jira,
+        issues_data,
+        config.jira.fields,
+        config.jira.filter_jql("assignee = currentUser() AND statusCategory != Done"),
+        "Could not fetch assigned tickets",
+    )
+    authored_tickets = fetch_additional_tickets(
+        jira,
+        issues_data,
+        config.jira.fields,
+        config.jira.filter_jql("reporter = currentUser() AND statusCategory != Done"),
+        "Could not fetch authored tickets",
+    )
 
     # Features:
     # 1. Show list of still open tickets
@@ -212,7 +224,12 @@ def main() -> None:
     ]
     print_tickets("--- Open Tickets ---", open_tickets, config.jira.url)
 
-    # 2. Show authored tickets
+    # 2. Show assigned tickets
+    print_tickets(
+        "--- Tickets Assigned to Me (Open) ---", assigned_tickets, config.jira.url
+    )
+
+    # 3. Show authored tickets
     print_tickets(
         "--- Tickets Authored by Me (Open) ---", authored_tickets, config.jira.url
     )

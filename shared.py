@@ -36,6 +36,12 @@ class JiraConfig:
     token: Optional[str] = None
     fields: Optional[JiraFields] = None
     closed_statuses: list[str] = None
+    filter: Optional[str] = None
+
+    def filter_jql(self, jql: str) -> str:
+        if not self.filter:
+            return jql
+        return f"{jql} AND {self.filter}"
 
 
 @dataclass
@@ -67,6 +73,7 @@ def load_config() -> Config:
         token=jira_data.get("token"),
         fields=fields,
         closed_statuses=jira_data.get("closed_statuses", ["Done", "Closed"]),
+        filter=jira_data.get("filter"),
     )
 
     return Config(
@@ -89,6 +96,7 @@ def save_config(config: Config) -> None:
                 "sprint": config.jira.fields.sprint,
                 "acceptance_criteria": config.jira.fields.acceptance_criteria,
             },
+            "filter": config.jira.filter,
         },
         "tickets": config.tickets,
         "common_label": config.common_label,

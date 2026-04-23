@@ -11,8 +11,11 @@ def track_tickets(jira: JIRA, config: Any, ticket_key: Optional[str] = None) -> 
         return
 
     print("Fetching open tickets assigned to you...")
-    jql = "assignee = currentUser() AND statusCategory != Done"
-    my_open_tickets = fetch_and_cache_tickets(jira, jql, config.jira.fields)
+    my_open_tickets = fetch_and_cache_tickets(
+        jira,
+        config.jira.filter_jql("assignee = currentUser() AND statusCategory != Done"),
+        config.jira.fields,
+    )
 
     untracked = [t for t in my_open_tickets if t.key not in config.tickets]
 
