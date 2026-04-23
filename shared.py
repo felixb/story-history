@@ -21,6 +21,7 @@ class Ticket:
     sprint: str
     description: Optional[str] = None
     acceptance_criteria: Optional[list] = None
+    links: Optional[list[dict]] = None
 
 
 @dataclass
@@ -132,7 +133,9 @@ def save_ticket_to_cache(ticket: Ticket) -> None:
         yaml.dump(asdict(ticket), f)
 
 
-def process_jira_issue(issue: Any, fields: JiraFields) -> Ticket:
+def process_jira_issue(
+    issue: Any, fields: JiraFields, jira: Optional[JIRA] = None
+) -> Ticket:
     status = issue.fields.status.name
     points = getattr(issue.fields, fields.story_points, 0)
     if points is None:
@@ -171,6 +174,50 @@ def process_jira_issue(issue: Any, fields: JiraFields) -> Ticket:
         else:
             ac_processed = str(ac_raw)
 
+    links = []
+    if hasattr(issue.fields, "issuelinks"):
+        for link in issue.fields.issuelinks:
+            if hasattr(link, "outwardIssue"):
+                links.append(
+                    {
+                        "type": link.type.outward,
+                        "key": link.outwardIssue.key,
+                        "summary": link.outwardIssue.fields.summary,
+                        "status": link.outwardIssue.fields.status.name,
+                        "url": link.outwardIssue.permalink(),
+                    }
+                )
+            elif hasattr(link, "inwardIssue"):
+                links.append(
+                    {
+                        "type": link.type.inward,
+                        "key": link.inwardIssue.key,
+                        "summary": link.inwardIssue.fields.summary,
+                        "status": link.inwardIssue.fields.status.name,
+                        "url": link.inwardIssue.permalink(),
+                    }
+                )
+
+    if jira:
+        try:
+            remote_links = jira.remote_links(issue.id)
+            for rl in remote_links:
+                links.append(
+                    {
+                        "type": (
+                            rl.relationship
+                            if hasattr(rl, "relationship")
+                            else "links to"
+                        ),
+                        "key": "Remote",
+                        "summary": rl.object.title,
+                        "status": "External",
+                        "url": rl.object.url,
+                    }
+                )
+        except Exception:
+            pass
+
     return Ticket(
         key=issue.key,
         summary=issue.fields.summary,
@@ -179,6 +226,7 @@ def process_jira_issue(issue: Any, fields: JiraFields) -> Ticket:
         sprint=extract_sprint_name(issue, fields),
         description=description,
         acceptance_criteria=ac_processed,
+        links=links,
     )
 
 
@@ -189,7 +237,7 @@ def fetch_and_cache_tickets(
     processed_tickets = []
 
     for issue in fetched_issues:
-        issue_info = process_jira_issue(issue, fields)
+        issue_info = process_jira_issue(issue, fields, jira=jira)
         processed_tickets.append(issue_info)
         save_ticket_to_cache(issue_info)
 

@@ -5,7 +5,7 @@ from shared import Config, process_jira_issue, save_ticket_to_cache
 def show_story(jira: JIRA, config: Config, key: str) -> None:
     try:
         issue = jira.issue(key)
-        ticket = process_jira_issue(issue, config.jira.fields)
+        ticket = process_jira_issue(issue, config.jira.fields, jira=jira)
         save_ticket_to_cache(ticket)
 
         print(f"# {ticket.key}: {ticket.summary}\n")
@@ -37,6 +37,15 @@ def show_story(jira: JIRA, config: Config, key: str) -> None:
                 print()
             else:
                 print(f"{ticket.acceptance_criteria}\n")
+
+        if ticket.links:
+            print("## Links")
+            for link in ticket.links:
+                line = f"- {link['type']} {link['key']}: {link['summary']} ({link['status']})"
+                if "url" in link and link["url"]:
+                    line += f"\n  {link['url']}"
+                print(line)
+            print()
 
     except Exception as e:
         print(f"Error fetching story {key}: {e}")
